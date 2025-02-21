@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <title>JukeBot</title>
-    <link rel="stylesheet" href="../css/index.css">
+    <!-- Load css -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 </head>
 <body>
 
@@ -12,11 +13,15 @@
         <textarea id="mainTextBox" placeholder="Type your desired playlist vibe..."></textarea>
         <button id="submitBtn">Submit</button>
 
-        <p id="output"></p> <!-- Display captured text -->
+        <!--Show a loading spinner while waiting for Ollama response-->
+        <div class="loading-spinner" style="display: none;"></div>
+
+        <!-- Display Ollama response -->
+        <p id="output"></p>
     </div>
 
     <!-- Load JavaScript -->
-    <script src="../js/index.js"></script>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 
 </body>
 

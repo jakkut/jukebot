@@ -55,6 +55,9 @@ Thumbs.db
 *.key
 *.pem
 
+# ignore virtual environment
+env/
+
 # --------------------------------------------------------
 # BEGIN Explictly Allowed Files (i.e. do NOT ignore these)
 # --------------------------------------------------------
