@@ -31,6 +31,12 @@
     font-family: 'Roboto Mono', monospace;
 }
 
+#clearBtn {
+    text-align: center;
+    cursor: pointer;
+    font-family: 'Roboto Mono', monospace;
+}
+
 .loading-spinner {
     border: 4px solid #f3f3f3; /* Light grey background */
     border-top: 4px solid #3498db; /* Blue color for the spinning part */

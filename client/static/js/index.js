@@ -47,4 +47,18 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Button to clear conversation history
+    clearBtn.addEventListener("click", function () {
+        fetch("/reset", { method: "POST" })
+            .then((response) => response.json())
+            .then((data) => {
+                console.log(data.message);
+                output.innerText = "Conversation history cleared!";
+            })
+            .catch((error) => {
+                output.innerText = "Error clearing history!";
+                console.error(error);
+            });
+    });
+
 });
