@@ -58,6 +58,9 @@ Thumbs.db
 # ignore virtual environment
 env/
 
+# ignore firebase config info
+client/config.js
+
 # --------------------------------------------------------
 # BEGIN Explictly Allowed Files (i.e. do NOT ignore these)
 # --------------------------------------------------------
