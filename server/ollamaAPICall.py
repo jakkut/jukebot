@@ -1,9 +1,27 @@
 from ollama import chat
 from flask import Flask, request, jsonify, render_template, session, make_response
-import json
+from flask_sqlalchemy import SQLAlchemy
+import json, os
+import logging
+#logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
 app.secret_key = "your_secret_key"  # Needed to store session data
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "messages.db")}'
+db = SQLAlchemy(app)
+
+class UserHistory(db.Model):
+    __tablename__ = 'user_history'
+    id = db.Column(db.String(64), primary_key=True)
+    messages = db.Column(db.Text)
+
+with app.app_context():
+    print("Creating tables...")
+    db.create_all()
+    print("Tables created.")
+
+
 
 @app.route("/")
 def index():
@@ -11,19 +29,22 @@ def index():
 
 @app.route("/generate_songs", methods=["POST"])
 def generate_songs():
-    # Get user input from the frontend if there
+    # Get user input from the frontend 
     user_input = request.json.get("content")
-    user_id = request.cookies.get("userId")
-    if user_id: 
-        saved_messages = request.cookies.get(f"saved_messages_{user_id}")
-       
+
+    #check if previous user
+    user_id = request.args.get("userId")
+    saved_messages = None
+    if user_id:
+        saved_messages = UserHistory.query.get(user_id)
+
 
     # Retrieve message history from session/user (or initialize if empty)
-    if "messages" not in session:      
+    if "messages" not in session:
+              
         if saved_messages: #if previous user
             # Deserialize the messages (convert JSON string back to a list)
-            messages = json.loads(saved_messages)
-            session["messages"] = messages  # Restore messages to the session
+            session["messages"] =  jsonify({"messages": saved_messages.messages}) 
             user_input = "Considering the general vibe and general preferences of the previous messages, " \
             "make a playlist that fits this description: " + user_input
 
@@ -51,28 +72,25 @@ def generate_songs():
 def reset():
     # Retrieve the current messages from the session
     messages = session.get("messages", [])
+    # Retrieve the userId from the request body
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "No data provided."}), 400
 
-    # Retrieve the userId from the cookie
-    user_id = request.cookies.get("userId")
+    user_id = data.get("userId")
+    if not user_id:
+        return jsonify({"message": "User ID not provided."}), 400
 
-    if user_id:
-        # Save the messages to a new cookie (or server-side storage) using the userId as a key
-        response = make_response(jsonify({"message": "Conversation history cleared!"}))
-        response.set_cookie(
-            f"saved_messages_{user_id}",  # Unique cookie name for the user
-            json.dumps(messages),  # Serialize messages to JSON
-            max_age=30 * 24 * 60 * 60,  # Cookie expiration (e.g., 30 days)
-            path="/",  # Cookie path
-            httponly=True,  # Prevent client-side JavaScript access
-            secure=True  # Ensure the cookie is sent only over HTTPS
-        )
-    else:
-        response = make_response(jsonify({"message": "User ID not found."}), 400)
+    if messages:
+        # Save messages to the database
+        saved_messages = UserHistory(id=user_id, messages=json.dumps(messages))
+        db.session.merge(saved_messages)  # Update or insert
+        db.session.commit()
 
     # Clear the session messages
     session.pop("messages", None)
 
-    return response
+    return jsonify({"message": "Conversation history cleared!"})
 
 
 if __name__ == "__main__":

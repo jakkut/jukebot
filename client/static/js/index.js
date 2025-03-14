@@ -5,40 +5,18 @@ function generateUUID() {
   });
 }
 
-// Function to set the UUID in a cookie
-function setUserCookie() {
-  const userId = generateUUID();  // Generate a unique user ID
-  const expires = new Date();
-  expires.setFullYear(expires.getFullYear() + 1); // Cookie expiration for 1 year
-  document.cookie = `userId=${userId};expires=${expires.toUTCString()};path=/`; // Set the cookie
-}
-
-// Function to get the UUID from the cookie
-function getUserCookie() {
-  const name = "userId=";
-  const decodedCookie = decodeURIComponent(document.cookie);
-  const ca = decodedCookie.split(';');
-  for (let i = 0; i < ca.length; i++) {
-      let c = ca[i];
-      while (c.charAt(0) == ' ') c = c.substring(1);
-      if (c.indexOf(name) == 0) return c.substring(name.length, c.length);
-  }
-  return "";
-}
-
 // Wait until the DOM is fully loaded
 document.addEventListener("DOMContentLoaded", function () {
     let mainTextBox = document.getElementById("mainTextBox");
     let submitBtn = document.getElementById("submitBtn");
     let output = document.getElementById("output");
 
-    //cookie retrival 
-    // If the user doesn't already have a UUID cookie, generate one
-    if (!getUserCookie()) {
-      setUserCookie();
+   // generate or retrieve the userId
+    let userId = localStorage.getItem("userId");
+    if (!userId) {
+      userId = generateUUID();
+      localStorage.setItem("userId", userId); // Save the userId in localStorage
     }
-
-
 
 
     // Click submit button
@@ -86,7 +64,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Button to clear conversation history
     clearBtn.addEventListener("click", function () {
-        fetch("/reset", { method: "POST" })
+        fetch("/reset", {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json", // Set the correct Content-Type
+          },
+          body: JSON.stringify({userId}), // Serialize data to JSON
+        })
             .then((response) => response.json())
             .then((data) => {
                 console.log(data.message);
