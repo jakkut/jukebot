@@ -1,8 +1,45 @@
+function generateUUID() {
+  return 'xxxxxxxxyxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+  });
+}
+
+// Function to set the UUID in a cookie
+function setUserCookie() {
+  const userId = generateUUID();  // Generate a unique user ID
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1); // Cookie expiration for 1 year
+  document.cookie = `userId=${userId};expires=${expires.toUTCString()};path=/`; // Set the cookie
+}
+
+// Function to get the UUID from the cookie
+function getUserCookie() {
+  const name = "userId=";
+  const decodedCookie = decodeURIComponent(document.cookie);
+  const ca = decodedCookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) == ' ') c = c.substring(1);
+      if (c.indexOf(name) == 0) return c.substring(name.length, c.length);
+  }
+  return "";
+}
+
 // Wait until the DOM is fully loaded
 document.addEventListener("DOMContentLoaded", function () {
     let mainTextBox = document.getElementById("mainTextBox");
     let submitBtn = document.getElementById("submitBtn");
     let output = document.getElementById("output");
+
+    //cookie retrival 
+    // If the user doesn't already have a UUID cookie, generate one
+    if (!getUserCookie()) {
+      setUserCookie();
+    }
+
+
+
 
     // Click submit button
     submitBtn.addEventListener("click", function () {
@@ -60,5 +97,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 console.error(error);
             });
     });
+
+    window.addEventListener("beforeunload", function (event) {
+      fetch("/reset", { method: "POST" })
+    });
+
 
 });
