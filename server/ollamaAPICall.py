@@ -2,7 +2,8 @@ from ollama import chat
 from flask import Flask, request, jsonify, render_template, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 import json, os
-import logging
+import uuid
+import datetime
 #logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
@@ -11,17 +12,22 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "messages.db")}'
 db = SQLAlchemy(app)
 
+class Users(db.Model):
+    __tablename__ = 'users'
+    user_id = db.Column(db.String(64), primary_key=True)
+    password = db.Column(db.String(64))
+
 class UserHistory(db.Model):
     __tablename__ = 'user_history'
-    id = db.Column(db.String(64), primary_key=True)
-    messages = db.Column(db.Text)
+    message_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(64), db.ForeignKey('users.user_id'), nullable=False)
+    message = db.Column(db.Text)
+    role = db.Column(db.String)
+    session_id = db.Column(db.String(36), default=lambda: str(uuid.uuid4()))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 with app.app_context():
-    print("Creating tables...")
     db.create_all()
-    print("Tables created.")
-
-
 
 @app.route("/")
 def index():
@@ -29,39 +35,61 @@ def index():
 
 @app.route("/generate_songs", methods=["POST"])
 def generate_songs():
-    # Get user input from the frontend 
+    #get user input / user id from the frontend 
     user_input = request.json.get("content")
+    user_id = request.json.get("userId")
 
-    #check if previous user
-    user_id = request.args.get("userId")
-    saved_messages = None
-    if user_id:
-        saved_messages = UserHistory.query.get(user_id)
+    #save user if new user 
+    existing_user = Users.query.filter_by(user_id=user_id).first()
+    if not existing_user:
+        new_user = Users(user_id=user_id)
+        db.session.add(new_user)
+        db.session.commit()
 
 
-    # Retrieve message history from session/user (or initialize if empty)
-    if "messages" not in session:
-              
+    #retrive any messages if returning user  
+    saved_messages = []
+    history = UserHistory.query.filter_by(user_id=user_id).all()
+    for msg in history:
+        print(msg.message)
+        saved_messages.append({'role': msg.role, 'content': msg.message})
+
+
+    
+    if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
-            # Deserialize the messages (convert JSON string back to a list)
-            session["messages"] =  jsonify({"messages": saved_messages.messages}) 
-            user_input = "Considering the general vibe and general preferences of the previous messages, " \
+            user_input = "Considering the general vibe and general preferences of all previous messages, " \
             "make a playlist that fits this description: " + user_input
 
-        else: # if new user and first message
-            # Only add the system prompt to the first message
-            session["messages"] = []
+        else: #if new user 
             user_input = "Make a playlist that fits this description: " + user_input
+        
+        user_message = UserHistory(user_id=user_id, message=user_input, role='user')
+        db.session.add(user_message)
+        db.session.commit()
+
+        # save newly created session_id
+        recent_history = UserHistory.query.filter_by(user_id=user_id).order_by(UserHistory.created_at.desc()).first()
+        session["session_id"] = recent_history.session_id 
+
+    else: #if continuing conversation 
+        #no change to user input 
+        user_message = UserHistory(user_id=user_id, message=user_input, role='user', session_id=session['session_id'])
+        db.session.add(user_message)
+        db.session.commit()
+
 
     # Append user message
-    session["messages"].append({'role': 'user', 'content': user_input})
+    saved_messages.append({'role': 'user', 'content': user_input})
+    print(saved_messages)
 
     # Generate response using Ollama
-    response = chat(model='llama3.2', messages=session["messages"])
+    response = chat(model='llama3.2', messages=saved_messages)
 
-    # Append response to message history
-    session["messages"].append({'role': 'assistant', 'content': response['message']['content']})
-
+    AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
+    db.session.add(AI_message)
+    db.session.commit()
+    
     # Save session
     session.modified = True
 
@@ -70,26 +98,8 @@ def generate_songs():
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    # Retrieve the current messages from the session
-    messages = session.get("messages", [])
-    # Retrieve the userId from the request body
-    data = request.get_json()
-    if not data:
-        return jsonify({"message": "No data provided."}), 400
-
-    user_id = data.get("userId")
-    if not user_id:
-        return jsonify({"message": "User ID not provided."}), 400
-
-    if messages:
-        # Save messages to the database
-        saved_messages = UserHistory(id=user_id, messages=json.dumps(messages))
-        db.session.merge(saved_messages)  # Update or insert
-        db.session.commit()
-
-    # Clear the session messages
-    session.pop("messages", None)
-
+    #session.pop("messages", None)
+    session.pop("session_id", None)
     return jsonify({"message": "Conversation history cleared!"})
 
 
