@@ -47,7 +47,7 @@ def generate_songs():
         db.session.commit()
 
 
-    #retrive any messages if returning user  
+    #retrieve any messages if returning user  
     saved_messages = []
     history = UserHistory.query.filter_by(user_id=user_id).all()
     for msg in history:
