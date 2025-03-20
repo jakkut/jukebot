@@ -51,7 +51,6 @@ def generate_songs():
     saved_messages = []
     history = UserHistory.query.filter_by(user_id=user_id).all()
     for msg in history:
-        print(msg.message)
         saved_messages.append({'role': msg.role, 'content': msg.message})
 
 
@@ -81,7 +80,6 @@ def generate_songs():
 
     # Append user message
     saved_messages.append({'role': 'user', 'content': user_input})
-    print(saved_messages)
 
     # Generate response using Ollama
     response = chat(model='llama3.2', messages=saved_messages)
