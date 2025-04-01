@@ -62,7 +62,12 @@ def generate_songs():
 
         else: #if new user 
             user_input = "Make a playlist that fits this description: " + user_input
-        
+            user_input = user_input + """If you add commentary, only do so BEFORE the list. After the commentary, 
+    write "Playlist title: <playlist title>".
+    Then, respond with the list of songs, which should be formatted as such: 
+    <artist>: <title>, one song per line, separated by A SINGLE NEWLINE and NO extra characters.
+    DO NOT add any commentary after the end of the list. Reply in that exact format."""
+
         user_message = UserHistory(user_id=user_id, message=user_input, role='user')
         db.session.add(user_message)
         db.session.commit()
@@ -94,6 +99,27 @@ def generate_songs():
     # Return the latest response only
     return jsonify({"playlist": response['message']['content']})
 
+def parse_output(response):
+    output = response['message']['content']
+    lines = output.strip().split("\n")
+    songs = []
+    playlist_title = lines[0].replace("Playlist title:", "").strip()
+    
+    for line in lines[1:]:
+        artist, title = map(str.strip, line.split(":", 1)) 
+        songs.append((artist, title))
+    
+    print("parsing!")
+    
+    # note: for spotify's api, you need to pass in an array of spotify uris as strings.
+    # in integration part, should extract the following list of songs and search them using the api
+    # to get their uris first
+    return {
+        "playlist_title": playlist_title,
+        "songs": songs
+    }
+
+    
 @app.route("/reset", methods=["POST"])
 def reset():
     #session.pop("messages", None)
@@ -103,3 +129,75 @@ def reset():
 
 if __name__ == "__main__":
     app.run(debug=True, host="localhost", port=8000)
+
+
+
+
+
+
+
+
+
+
+#!/usr/bin/env python3
+
+#OPENAI (and DeepSeek)
+
+# from openai import OpenAI
+# client = OpenAI(
+#   api_key=""
+# )
+
+# completion = client.chat.completions.create(
+#   model="gpt-4o-mini",
+#   max_tokens=50,
+#   store=True,
+#   messages=[
+#     {"role": "user", "content": "write a haiku about ai"}
+#   ]
+# )
+# print(completion.choices[0].message);
+
+
+#HUGGINGFACE
+
+# import requests
+
+# # Hugging Face API URL for the model
+# token = ''
+# #try BERT or T5 models then finetune with music data 
+
+# API_URL = "https://api-inference.huggingface.co/models/gpt2" 
+
+# # Your Hugging Face API token
+# headers = {
+#     "Authorization": f"Bearer {token}"  # Add token here
+# }
+
+# def query(payload):
+#     response = requests.post(API_URL, headers=headers, json=payload)
+#     return response.json()
+
+# input_data = {
+#     "inputs": "What are three popular love songs?"  
+# }
+
+# # Call the API and print the response
+# response = query(input_data)
+# print(response)
+
+#OLLAMA 
+# first run: ollama pull llama3.2 in terminal 
+
+
+
+
+
+
+# response: ChatResponse = chat(model='llama3.2', messages=[
+#   {
+#     'role': 'user',
+#     'content': 'can you give me a playlist with kendrick lamar songs and ariana grande songs and taylor swift songs. But only 5 songs total?',
+#   },
+# ])
+# print(response['message']['content'])
