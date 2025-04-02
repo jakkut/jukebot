@@ -58,23 +58,33 @@ def generate_songs():
     if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
             user_input = "Considering the general vibe and general preferences of all previous messages, " \
-            "make a playlist that fits this description: " + user_input
+            "make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs: 
+            "Playlist title: <playlist title>,
+            <artist>: <title>, 
+            <artist>: <title>, 
+            <artist>: <title>, 
+            ..."
+            Here is an example to follow:
+            "Playlist title: Chill Pop Songs,
+            Taylor Swift: Lover,
+            Gracie Abrams: Packing it Up,
+            Taylor Swift: Champagne Problems,
+            Ed Sheeran: Lego House" """
 
         else: #if new user 
             user_input = "Make a playlist that fits this description: " + user_input
-            user_input = user_input + """Respond in this exact format: 
-    "Playlist title: <playlist title>,
-    <artist>: <title>, 
-    <artist>: <title>, 
-    <artist>: <title>, 
-    ..."
-    Here is an example to follow:
-    "Playlist title: Chill Pop Songs,
-    Taylor Swift: Lover,
-    Gracie Abrams: Packing it Up,
-    Taylor Swift: Champagne Problems,
-    Ed Sheeran: Lego House
-    """
+            user_input = user_input + """Respond in this exact format, and include at least 30 songs: 
+                "Playlist title: <playlist title>,
+                <artist>: <title>, 
+                <artist>: <title>, 
+                <artist>: <title>, 
+                ..."
+                Here is an example to follow:
+                "Playlist title: Chill Pop Songs,
+                Taylor Swift: Lover,
+                Gracie Abrams: Packing it Up,
+                Taylor Swift: Champagne Problems,
+                Ed Sheeran: Lego House" """
 
         user_message = UserHistory(user_id=user_id, message=user_input, role='user')
         db.session.add(user_message)
@@ -111,7 +121,7 @@ def parse_output(response):
     output = response['message']['content']
     lines = output.strip().split("\n")
     songs = []
-    playlist_title = lines[0].replace("Playlist title:", "").strip()
+    playlist_title = lines[0].replace("Results:", "").strip()
     
     for line in lines[1:]:
         artist, title = map(str.strip, line.split(":", 1)) 
