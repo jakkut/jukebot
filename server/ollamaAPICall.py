@@ -62,11 +62,19 @@ def generate_songs():
 
         else: #if new user 
             user_input = "Make a playlist that fits this description: " + user_input
-            user_input = user_input + """If you add commentary, only do so BEFORE the list. After the commentary, 
-    write "Playlist title: <playlist title>".
-    Then, respond with the list of songs, which should be formatted as such: 
-    <artist>: <title>, one song per line, separated by A SINGLE NEWLINE and NO extra characters.
-    DO NOT add any commentary after the end of the list. Reply in that exact format."""
+            user_input = user_input + """Respond in this exact format: 
+    "Playlist title: <playlist title>,
+    <artist>: <title>, 
+    <artist>: <title>, 
+    <artist>: <title>, 
+    ..."
+    Here is an example to follow:
+    "Playlist title: Chill Pop Songs,
+    Taylor Swift: Lover,
+    Gracie Abrams: Packing it Up,
+    Taylor Swift: Champagne Problems,
+    Ed Sheeran: Lego House
+    """
 
         user_message = UserHistory(user_id=user_id, message=user_input, role='user')
         db.session.add(user_message)
