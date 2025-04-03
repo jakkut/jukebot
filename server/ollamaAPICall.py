@@ -17,7 +17,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "mess
 db = SQLAlchemy(app)
 
 class allUsers(db.Model):
-    __tablename__ = 'users'
+    __tablename__ = 'allusers'
     user_id = db.Column(db.String(64), primary_key=True)
     password = db.Column(db.String(64))
 
@@ -183,4 +183,48 @@ def login():
             user = database.get_user(username)
             if user and verify_hash(user['password'], password):
                 session['username'] = username
-                session
+                session['is_guest'] = False
+                return redirect(url_for('home'))
+        
+        flash('Invalid username or password', 'error')
+        return redirect(url_for('login'))
+    
+    return render_template('login.html')
+
+@app.route('/guest-login')
+def guest_login():
+    session['username'] = 'Guest'
+    session['is_guest'] = True
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=24)
+    return redirect(url_for('home'))
+
+@app.route('/create_account', methods=['GET', 'POST'])
+def create_account():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return redirect(url_for('create_account'))
+        
+        if database.user_exists(username):
+            flash('Username already exists', 'error')
+            return redirect(url_for('create_account'))
+        
+        hashed_password = make_hash(password)
+        database.add_user(username, hashed_password)
+        flash('Account created successfully! Please login.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('create_account.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="localhost", port=8000)
