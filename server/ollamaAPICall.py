@@ -57,14 +57,24 @@ def verify_hash(stored_hash, input_password):
 def generate_songs():
     #get user input / user id from the frontend 
     user_input = request.json.get("content")
-    user_id = request.json.get("userId")
+    user_id = None
+    if session['is_guest'] == True:
+        user_id = request.json.get("userId")
+    else:
+        user_id = session['username'] 
 
-    #save user if new user 
+   
+
     existing_user = Users.query.filter_by(user_id=user_id).first()
     if not existing_user:
-        new_user = Users(user_id=user_id)
-        db.session.add(new_user)
-        db.session.commit()
+        if session['is_guest'] == False:
+            new_user = Users(user_id=user_id, password=session['password'] )
+        else:
+            new_user = Users(user_id=user_id)
+            db.session.add(new_user)
+            db.session.commit()
+        
+
 
 
     #retrieve any messages if returning user  
