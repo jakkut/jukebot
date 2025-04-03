@@ -1,9 +1,13 @@
 from ollama import chat
 from flask import Flask, request, jsonify, render_template, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 import json, os
 import uuid
 import datetime
+import database
+import hashlib
+from datetime import timedelta
 #logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
@@ -29,9 +33,25 @@ class UserHistory(db.Model):
 with app.app_context():
     db.create_all()
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+
+# Your hash functions
+def make_hash(password):
+    algorithm = 'sha512'
+    salt = uuid.uuid4().hex
+    hash_obj = hashlib.new(algorithm)
+    password_salted = salt + password
+    hash_obj.update(password_salted.encode('utf-8'))
+    password_hash = hash_obj.hexdigest()
+    return "$".join([algorithm, salt, password_hash])
+
+def verify_hash(stored_hash, input_password):
+    parts = stored_hash.split('$')
+    if len(parts) != 3:
+        return False
+    algorithm, salt, _ = parts
+    hash_obj = hashlib.new(algorithm)
+    hash_obj.update((salt + input_password).encode('utf-8'))
+    return stored_hash == "$".join([algorithm, salt, hash_obj.hexdigest()])
 
 @app.route("/generate_songs", methods=["POST"])
 def generate_songs():
@@ -145,77 +165,64 @@ def reset():
     return jsonify({"message": "Conversation history cleared!"})
 
 
+@app.route('/')
+def home():
+    if 'username' in session:
+        return render_template('index.html', username=session.get('username'), is_guest=session.get('is_guest', False))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if username and password:
+            user = database.get_user(username)
+            if user and verify_hash(user['password'], password):
+                session['username'] = username
+                session['is_guest'] = False
+                return redirect(url_for('home'))
+        
+        flash('Invalid username or password', 'error')
+        return redirect(url_for('login'))
+    
+    return render_template('login.html')
+
+@app.route('/guest-login')
+def guest_login():
+    session['username'] = 'Guest'
+    session['is_guest'] = True
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=24)
+    return redirect(url_for('home'))
+
+@app.route('/create_account', methods=['GET', 'POST'])
+def create_account():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return redirect(url_for('create_account'))
+        
+        if database.user_exists(username):
+            flash('Username already exists', 'error')
+            return redirect(url_for('create_account'))
+        
+        hashed_password = make_hash(password)
+        database.add_user(username, hashed_password)
+        flash('Account created successfully! Please login.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('create_account.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="localhost", port=8000)
-
-
-
-
-
-
-
-
-
-
-#!/usr/bin/env python3
-
-#OPENAI (and DeepSeek)
-
-# from openai import OpenAI
-# client = OpenAI(
-#   api_key=""
-# )
-
-# completion = client.chat.completions.create(
-#   model="gpt-4o-mini",
-#   max_tokens=50,
-#   store=True,
-#   messages=[
-#     {"role": "user", "content": "write a haiku about ai"}
-#   ]
-# )
-# print(completion.choices[0].message);
-
-
-#HUGGINGFACE
-
-# import requests
-
-# # Hugging Face API URL for the model
-# token = ''
-# #try BERT or T5 models then finetune with music data 
-
-# API_URL = "https://api-inference.huggingface.co/models/gpt2" 
-
-# # Your Hugging Face API token
-# headers = {
-#     "Authorization": f"Bearer {token}"  # Add token here
-# }
-
-# def query(payload):
-#     response = requests.post(API_URL, headers=headers, json=payload)
-#     return response.json()
-
-# input_data = {
-#     "inputs": "What are three popular love songs?"  
-# }
-
-# # Call the API and print the response
-# response = query(input_data)
-# print(response)
-
-#OLLAMA 
-# first run: ollama pull llama3.2 in terminal 
-
-
-
-
-
-
-# response: ChatResponse = chat(model='llama3.2', messages=[
-#   {
-#     'role': 'user',
-#     'content': 'can you give me a playlist with kendrick lamar songs and ariana grande songs and taylor swift songs. But only 5 songs total?',
-#   },
-# ])
-# print(response['message']['content'])
