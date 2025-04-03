@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", function () {
               document.querySelector(".loading-spinner").style.display = "none";
 
               // Display the generated songs from Python
-              output.innerText = "Results: " + data.playlist;
+              output.innerText = "Playlist Title: " + data.playlist;
             })
             .catch((error) => {
               output.innerText = "Error generating playlist!";
