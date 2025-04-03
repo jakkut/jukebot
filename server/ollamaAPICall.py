@@ -16,7 +16,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "messages.db")}'
 db = SQLAlchemy(app)
 
-class Users(db.Model):
+class allUsers(db.Model):
     __tablename__ = 'users'
     user_id = db.Column(db.String(64), primary_key=True)
     password = db.Column(db.String(64))
@@ -59,23 +59,16 @@ def generate_songs():
     user_input = request.json.get("content")
     user_id = None
     if session['is_guest'] == True:
-        user_id = request.json.get("userId")
+        user_id = request.json.get("userId") #guest using cookie
     else:
-        user_id = session['username'] 
+        user_id = session['username']  #signed-in user 
 
    
-
-    existing_user = Users.query.filter_by(user_id=user_id).first()
+    existing_user = allUsers.query.filter_by(user_id=user_id).first()
     if not existing_user:
-        if session['is_guest'] == False:
-            new_user = Users(user_id=user_id, password=session['password'] )
-        else:
-            new_user = Users(user_id=user_id)
-            db.session.add(new_user)
-            db.session.commit()
-        
-
-
+        new_user = allUsers(user_id=user_id)
+        db.session.add(new_user)
+        db.session.commit()
 
     #retrieve any messages if returning user  
     saved_messages = []
@@ -84,7 +77,6 @@ def generate_songs():
         saved_messages.append({'role': msg.role, 'content': msg.message})
 
 
-    
     if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
             user_input = "Considering the general vibe and general preferences of all previous messages, " \
@@ -191,48 +183,4 @@ def login():
             user = database.get_user(username)
             if user and verify_hash(user['password'], password):
                 session['username'] = username
-                session['is_guest'] = False
-                return redirect(url_for('home'))
-        
-        flash('Invalid username or password', 'error')
-        return redirect(url_for('login'))
-    
-    return render_template('login.html')
-
-@app.route('/guest-login')
-def guest_login():
-    session['username'] = 'Guest'
-    session['is_guest'] = True
-    session.permanent = True
-    app.permanent_session_lifetime = timedelta(hours=24)
-    return redirect(url_for('home'))
-
-@app.route('/create_account', methods=['GET', 'POST'])
-def create_account():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if not username or not password:
-            flash('Username and password are required', 'error')
-            return redirect(url_for('create_account'))
-        
-        if database.user_exists(username):
-            flash('Username already exists', 'error')
-            return redirect(url_for('create_account'))
-        
-        hashed_password = make_hash(password)
-        database.add_user(username, hashed_password)
-        flash('Account created successfully! Please login.', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('create_account.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
-
-
-if __name__ == "__main__":
-    app.run(debug=True, host="localhost", port=8000)
+                session
