@@ -1,83 +1,89 @@
-from flask import Flask, request, session, redirect, url_for, render_template, flash
-from userinfo import init_db, create_user, verify_user
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+import database
+import hashlib
+import uuid
+from datetime import datetime, timedelta
 
-app = Flask(__name__, template_folder='../client/templates')
-app.secret_key = 'your-secret-key-change-me'
-app.config['DATABASE'] = 'server/users.db'
+app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'  # Change this for production!
 
-# Initialize database before first request
-@app.before_first_request
-def initialize():
-    init_db()
+# Your hash functions
+def make_hash(password):
+    algorithm = 'sha512'
+    salt = uuid.uuid4().hex
+    hash_obj = hashlib.new(algorithm)
+    password_salted = salt + password
+    hash_obj.update(password_salted.encode('utf-8'))
+    password_hash = hash_obj.hexdigest()
+    return "$".join([algorithm, salt, password_hash])
+
+def verify_hash(stored_hash, input_password):
+    parts = stored_hash.split('$')
+    if len(parts) != 3:
+        return False
+    algorithm, salt, _ = parts
+    hash_obj = hashlib.new(algorithm)
+    hash_obj.update((salt + input_password).encode('utf-8'))
+    return stored_hash == "$".join([algorithm, salt, hash_obj.hexdigest()])
 
 @app.route('/')
-def index():
-    """Home page showing different content based on auth status."""
+def home():
     if 'username' in session:
-        return f"Welcome {session['username']}!"
-    if 'guest' in session:
-        return "Welcome Guest!"
-    return render_template("index.html")
-
-@app.route('/login', methods=['GET'])
-def login():
-    """Show login page."""
-    if 'username' in session:
-        return redirect('/')
-    return render_template('login.html')
-
-@app.route('/login', methods=['POST'])
-def handle_login():
-    """Process login form submission."""
-    username = request.form.get('username')
-    password = request.form.get('password')
-
-    if not username or not password:
-        flash('Username and password required')
-        return redirect(url_for('login'))
-
-    if verify_user(username, password):
-        session['username'] = username
-        return redirect('/')
-    
-    flash('Invalid credentials')
+        return render_template('index.html', username=session.get('username'), is_guest=session.get('is_guest', False))
     return redirect(url_for('login'))
 
-@app.route('/create', methods=['GET'])
-def create_account():
-    """Show account creation page."""
-    if 'username' in session:
-        return redirect('/')
-    return render_template('create_account.html')
-
-@app.route('/create', methods=['POST'])
-def handle_create():
-    """Process account creation."""
-    username = request.form.get('username')
-    password = request.form.get('password')
-
-    if not username or not password:
-        flash('Username and password required')
-        return redirect(url_for('create_account'))
-
-    if create_user(username, password):
-        session['username'] = username
-        return redirect('/')
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if username and password:
+            user = database.get_user(username)
+            if user and verify_hash(user['password'], password):
+                session['username'] = username
+                session['is_guest'] = False
+                return redirect(url_for('home'))
+        
+        flash('Invalid username or password', 'error')
+        return redirect(url_for('login'))
     
-    flash('Username already exists')
-    return redirect(url_for('create_account'))
+    return render_template('login.html')
+
+@app.route('/guest-login')
+def guest_login():
+    session['username'] = 'Guest'
+    session['is_guest'] = True
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=24)
+    return redirect(url_for('home'))
+
+@app.route('/create_account', methods=['GET', 'POST'])
+def create_account():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return redirect(url_for('create_account'))
+        
+        if database.user_exists(username):
+            flash('Username already exists', 'error')
+            return redirect(url_for('create_account'))
+        
+        hashed_password = make_hash(password)
+        database.add_user(username, hashed_password)
+        flash('Account created successfully! Please login.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('create_account.html')
 
 @app.route('/logout')
 def logout():
-    """Clear session and logout."""
     session.clear()
-    return redirect('/')
-
-@app.route('/guest')
-def continue_as_guest():
-    """Set guest session flag."""
-    session['guest'] = True
-    return render_template("index.html")
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
+    database.init_db()
     app.run(debug=True)

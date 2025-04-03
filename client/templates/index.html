@@ -7,9 +7,23 @@
 </head>
 <body>
 
+    <div style="position: absolute; top: 10px; right: 10px; text-align: right;">
+        {% if is_guest %}
+            <a href="{{ url_for('login') }}" style="font-family: 'Roboto Mono', monospace; color: #3498db; text-decoration: none;">Have an Account? Login</a>
+        {% else %}
+            <a href="{{ url_for('logout') }}" style="font-family: 'Roboto Mono', monospace; color: #3498db; text-decoration: none;">Logout ({{ session['username'] }})</a>
+        {% endif %}
+    </div>
+
+    {% if is_guest %}
+    <div class="guest-notice">
+        <p>You're using a temporary guest account. <a href="{{ url_for('create_account') }}">Create an account</a> to save your preferences.</p>
+    </div>
+    {% endif %}
+
     <div class="input-container">
         <h1 id="JukeBotHeader">🕺JukeBot🕺</h1>
-        Hey there! Tell me the vibe, and I'll craft the perfect playlist for you!
+        Hey there{% if username %}, {{ username }}{% endif %}! Tell me the vibe, and I'll craft the perfect playlist for you!
         <p>Afterwards, let me know if you'd like to make any changes, or click "Clear Conversation History" to start the chat over.</p>
         <textarea id="mainTextBox" placeholder="Type your desired playlist vibe..."></textarea>
         <button id="submitBtn">Submit</button>
