@@ -1,3 +1,4 @@
+import re
 from ollama import chat
 from flask import Flask, request, jsonify, render_template, session, make_response
 from flask import Flask, render_template, request, redirect, url_for, session, flash
@@ -128,7 +129,11 @@ def generate_songs():
 
     # Generate response using Ollama
     response = chat(model='llama3.2', messages=saved_messages)
-
+    
+    # Parse response to get songs in form {'playlist_title': title, 'songs': [(artist, title), (artist, title)...]}
+    playlist = parse_output(response)
+    print(playlist)
+    
     AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
     db.session.add(AI_message)
     db.session.commit()
@@ -144,12 +149,15 @@ def parse_output(response):
     lines = output.strip().split("\n")
     songs = []
     playlist_title = lines[0].replace("Playlist Title:", "").strip()
+    playlist_title = re.sub(r'[^a-zA-Z0-9\s]', '', playlist_title)
     
     for line in lines[1:]:
         artist, title = map(str.strip, line.split(":", 1)) 
+        artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
+        title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
         songs.append((artist, title))
     
-    print("parsing!")
+    # print("parsing!")
     
     # note: for spotify's api, you need to pass in an array of spotify uris as strings.
     # in integration part, should extract the following list of songs and search them using the api
