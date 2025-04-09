@@ -148,14 +148,17 @@ def parse_output(response):
     output = response['message']['content']
     lines = output.strip().split("\n")
     songs = []
+    # print(output)
     playlist_title = lines[0].replace("Playlist Title:", "").strip()
     playlist_title = re.sub(r'[^a-zA-Z0-9\s]', '', playlist_title)
     
     for line in lines[1:]:
-        artist, title = map(str.strip, line.split(":", 1)) 
-        artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
-        title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
-        songs.append((artist, title))
+        print(line)
+        if line:
+            artist, title = map(str.strip, line.split(":", 1)) 
+            artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
+            title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
+            songs.append((artist, title))
     
     # print("parsing!")
     
