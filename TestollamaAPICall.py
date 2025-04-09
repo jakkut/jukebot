@@ -11,7 +11,7 @@ import hashlib
 from datetime import timedelta
 from SPOTIPYLINKTEST import create_playlist
 #logging.basicConfig(level=logging.DEBUG)
-
+#NOTE: IF YOU WANT TO TEST LIVE, JUST PUT IT IN THE SERVER FOLDER
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
 app.secret_key = "your_secret_key"  # Needed to store session data
 basedir = os.path.abspath(os.path.dirname(__file__))
