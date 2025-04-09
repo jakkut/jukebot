@@ -6,7 +6,7 @@ import webbrowser
 
 import urllib
 
-
+#NOTE: IF YOU WANT TO TEST LIVE, JUST PUT IT IN THE SERVER FOLDER
 #containing this in its own function to be able to call it from the ollama call file
 def create_playlist(input_playlist):
     # 1. Set up API endpoint using Spotify Developer Dashboard (for now, add your own)
