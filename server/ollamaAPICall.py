@@ -81,7 +81,7 @@ def generate_songs():
     if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
             user_input = "Considering the general vibe and general preferences of all previous messages, " \
-            "make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
+            "Absolutely DO NOT converse with me. You can only respond with a playlist. Just make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
             "<playlist title>
             <artist>: <title>, 
             <artist>: <title>, 
@@ -95,7 +95,7 @@ def generate_songs():
             Ed Sheeran: Lego House" """
 
         else: #if new user 
-            user_input = "Make a playlist that fits this description: " + user_input
+            user_input = "Absolutely DO NOT converse with me. You can only respond with a playlist. Just make me a playlist that fits this description: " + user_input
             user_input = user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
                 "<playlist title>,
                 <artist>: <title>, 
