@@ -81,7 +81,7 @@ def generate_songs():
     if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
             user_input = "Considering the general vibe and general preferences of all previous messages, " \
-            "make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs: 
+            "make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
             "<playlist title>
             <artist>: <title>, 
             <artist>: <title>, 
@@ -96,7 +96,7 @@ def generate_songs():
 
         else: #if new user 
             user_input = "Make a playlist that fits this description: " + user_input
-            user_input = user_input + """Respond in this exact format, and include at least 30 songs: 
+            user_input = user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
                 "<playlist title>,
                 <artist>: <title>, 
                 <artist>: <title>, 
