@@ -131,8 +131,28 @@ def generate_songs():
     response = chat(model='llama3.2', messages=saved_messages)
     
     # Parse response to get songs in form {'playlist_title': title, 'songs': [(artist, title), (artist, title)...]}
-    playlist = parse_output(response)
-    print(playlist)
+    try:
+        playlist = parse_output(response)
+        print(playlist)
+    except:
+        print('error with parsing')
+        new_message = """Repeat the previous command. Remember to respond in this exact format, and include at least 30 songs.
+                DO NOT INCLUDE ANY OTHER NOTES: 
+                "<playlist title>,
+                <artist>: <title>, 
+                <artist>: <title>, 
+                <artist>: <title>, 
+                ..."
+                Here is an example to follow:
+                "Chill Pop Songs,
+                Taylor Swift: Lover,
+                Gracie Abrams: Packing it Up,
+                Taylor Swift: Champagne Problems,
+                Ed Sheeran: Lego House" """
+        saved_messages.append({'role': 'user', 'content': new_message})
+        response = chat(model='llama3.2', messages=saved_messages)
+        playlist = parse_output(response)
+
     
     AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
     db.session.add(AI_message)
@@ -146,6 +166,7 @@ def generate_songs():
 
 def parse_output(response):
     output = response['message']['content']
+    print(output)
     lines = output.strip().split("\n")
     songs = []
     # print(output)
