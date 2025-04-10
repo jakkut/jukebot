@@ -137,9 +137,29 @@ def generate_songs():
     response = chat(model='llama3.2', messages=saved_messages)
     
     # Parse response to get songs in form {'playlist_title': title, 'songs': [(artist, title), (artist, title)...]}
-    playlist = parse_output(response)
-    print(playlist)
-    session["parsed_response"] = playlist
+    try:
+        playlist = parse_output(response)
+        print(playlist)
+        session["parsed_response"] = playlist
+    except:
+        print('error with parsing')
+        new_message = """Repeat the previous command. Remember to respond in this exact format.
+                DO NOT INCLUDE ANY OTHER NOTES: 
+                "<playlist title>,
+                <artist>: <title>, 
+                <artist>: <title>, 
+                <artist>: <title>, 
+                ..."
+                Here is an example to follow:
+                "Chill Pop Songs,
+                Taylor Swift: Lover,
+                Gracie Abrams: Packing it Up,
+                Taylor Swift: Champagne Problems,
+                Ed Sheeran: Lego House" """
+        saved_messages.append({'role': 'user', 'content': new_message})
+        response = chat(model='llama3.2', messages=saved_messages)
+        playlist = parse_output(response)
+        session["parsed_response"] = playlist
     
     #FOR DEBUG 
     #f = open("demofile2.txt", "a")
