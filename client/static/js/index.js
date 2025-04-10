@@ -82,9 +82,36 @@ document.addEventListener("DOMContentLoaded", function () {
             });
     });
 
+    // Click create button
+    createBtn.addEventListener("click", function () {
+      output.innerText = "Creating your playlist!";
+      document.querySelector(".loading-spinner").style.display = "block"; 
+
+      fetch('/create_playlist', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+          // Check if we need to prompt for authorization
+          if (data.requires_auth) {
+            // Open the Spotify auth window if no active authorization
+            document.querySelector(".loading-spinner").style.display = "none";
+            output.innerHTML = "I'll need access to your Spotify account first! Please authenticate in the new tab. \n Don't worry -- I'll remember what we've come up with, so once you've authenticated just come back to this page and click on \"Create Playlist\" again!";
+            window.open('/spotify_auth', '_blank', 'width=600,height=700');
+
+          } else if (data.playlist_link) {
+            // If the playlist was created directly, display the link
+            output.innerHTML = `Your playlist, <a href="${data.playlist_link}" target="_blank">${data.playlist_title}</a> is ready!`;
+            document.querySelector(".loading-spinner").style.display = "none";
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          document.querySelector(".loading-spinner").style.display = "none";
+          output.innerText = 'An error occurred while creating the playlist.';
+        });
+    });
+
     window.addEventListener("beforeunload", function (event) {
       fetch("/reset", { method: "POST" })
     });
-
 
 });
