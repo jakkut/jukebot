@@ -1,4 +1,10 @@
+import base64
+import http
+import random
+import string
 import re
+import time
+from urllib.parse import quote, urlencode
 from ollama import chat
 from flask import Flask, request, jsonify, render_template, session, make_response
 from flask import Flask, render_template, request, redirect, url_for, session, flash
@@ -131,28 +137,27 @@ def generate_songs():
     response = chat(model='llama3.2', messages=saved_messages)
     
     # Parse response to get songs in form {'playlist_title': title, 'songs': [(artist, title), (artist, title)...]}
-    try:
-        playlist = parse_output(response)
-        print(playlist)
-    except:
-        print('error with parsing')
-        new_message = """Repeat the previous command. Remember to respond in this exact format, and include at least 30 songs.
-                DO NOT INCLUDE ANY OTHER NOTES: 
-                "<playlist title>,
-                <artist>: <title>, 
-                <artist>: <title>, 
-                <artist>: <title>, 
-                ..."
-                Here is an example to follow:
-                "Chill Pop Songs,
-                Taylor Swift: Lover,
-                Gracie Abrams: Packing it Up,
-                Taylor Swift: Champagne Problems,
-                Ed Sheeran: Lego House" """
-        saved_messages.append({'role': 'user', 'content': new_message})
-        response = chat(model='llama3.2', messages=saved_messages)
-        playlist = parse_output(response)
+    playlist = parse_output(response)
+    print(playlist)
+    session["parsed_response"] = playlist
+    
+    #FOR DEBUG 
+    #f = open("demofile2.txt", "a")
+    #f.write(playlist)
+    #f.close()
 
+    # authorize spotify
+    # print("authorizing spotify")
+    # spotify_auth()
+    
+    # link = create_playlist(playlist)
+    #for debugging
+    #test_playlist = {'playlist_title': 'TEST', 'songs':[('Pink Floyd', 'Pigs (Three Different Ones)'),('Pink Floyd', 'Wish You Were Here'),('Pink Floyd', 'Dogs'), ('Pink Floyd', 'Have a Cigar'), ('Pink Floyd', 'Time')]}
+    #FOR DEBUGGING
+    #f = open("demofile2.txt", "a")
+    #f.write(test_playlist['songs'][0][1])
+    #f.close()
+    #link = create_playlist(test_playlist)
     
     AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
     db.session.add(AI_message)
@@ -166,7 +171,6 @@ def generate_songs():
 
 def parse_output(response):
     output = response['message']['content']
-    print(output)
     lines = output.strip().split("\n")
     songs = []
     # print(output)
@@ -190,6 +194,194 @@ def parse_output(response):
         "playlist_title": playlist_title,
         "songs": songs
     }
+    
+@app.route('/create_playlist', methods=["GET", "POST"])
+def create_playlist():
+    if is_authorized():
+        print("creating playlist!")
+        parsed_response = session["parsed_response"]
+
+        ACCESS_TOKEN = session["access_token"]
+        PLAYLIST_LINK = ""
+        if ACCESS_TOKEN:
+            # TODO: get user ID
+            USER_ID = get_user_id(ACCESS_TOKEN)
+            
+            # POST request to create playlist
+            conn = http.client.HTTPSConnection("api.spotify.com")
+            headers = {
+                "Authorization": f"Bearer {ACCESS_TOKEN}",
+                "Content-Type": "application/json"
+            }
+
+            playlist_data = {
+                "name": parsed_response['playlist_title'], #changed it to this so that the playlist names are variable
+                "description": "Made by Jukebot",
+                "public": False
+            }
+
+            body = json.dumps(playlist_data)
+            conn.request("POST", f"/v1/users/{USER_ID}/playlists", body, headers)
+
+            response = conn.getresponse()
+            data = json.loads(response.read().decode())
+            
+            # Get the playlist link and ID
+            PLAYLIST_LINK = data.get("external_urls", {}).get("spotify")
+            PLAYLIST_ID = data.get("id", {})
+            if PLAYLIST_LINK and PLAYLIST_ID:
+                print(f"Playlist Created! Link:{PLAYLIST_LINK}, ID:{PLAYLIST_ID}")
+            else:
+                print("Error creating playlist:", data)
+                
+            # Add songs to playlist
+            add_songs_to_playlist(parsed_response, ACCESS_TOKEN, PLAYLIST_ID)
+            session["latest_playlist"] = PLAYLIST_LINK
+            
+            return jsonify({'playlist_link': PLAYLIST_LINK, 'playlist_title': playlist_data["name"]})
+    else:
+        return jsonify({'requires_auth': True})
+
+def is_authorized():
+    access_token = session.get('access_token')
+    if access_token:
+        return True
+    else:
+        return False
+    
+def get_user_id(access_token):
+    # Make request to Spotify API to get user id
+    conn = http.client.HTTPSConnection("api.spotify.com")
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    conn.request("GET", "/v1/me", headers=headers)
+    response = conn.getresponse()
+    user_data = json.loads(response.read().decode())
+
+    USER_ID = ""
+    # Extract the user ID
+    if "id" in user_data:
+        USER_ID = user_data["id"]
+        print(f"Your Spotify User ID: {USER_ID}")
+    else:
+        print("Error fetching user ID:", user_data)
+        
+    return USER_ID
+
+def add_songs_to_playlist(parsed_response, access_token, playlist_id):
+    # This has been made with the assumption that what it's being given is a list of song titles. 
+    #This shouldnt need changing, but a function to convert whatever is given into a list may be needed
+    for i in range(0, len(parsed_response['songs'])):
+        time.sleep(1) # bc of rate limit
+        TRACK_NAME = parsed_response['songs'][i][1]
+        ARTIST_NAME = parsed_response['songs'][i][0] 
+
+        query = quote(f"{TRACK_NAME} {ARTIST_NAME}")
+
+        # Make request to Spotify API to get the song URI
+        conn = http.client.HTTPSConnection("api.spotify.com")
+        headers = {
+            "Authorization": f"Bearer {access_token}"
+        }
+
+        conn.request("GET", f"/v1/search?q={query}&type=track&limit=1" , headers=headers)
+        response = conn.getresponse()
+        data = json.loads(response.read().decode())
+
+        TRACK_URI = ""
+        if "tracks" in data and "items" in data["tracks"] and len(data["tracks"]["items"]) > 0:
+            TRACK_URI = data["tracks"]["items"][0]["uri"]
+            print(f"Found Track, URI: {TRACK_URI}")
+        else:
+            print("No track found for query:", TRACK_NAME)
+            
+        # Add song(s) to the created playlist
+        conn = http.client.HTTPSConnection("api.spotify.com")
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        uris = [TRACK_URI]
+        body = json.dumps({"uris": uris})
+
+        conn.request("POST", f"/v1/playlists/{playlist_id}/tracks", body, headers)
+
+        response = conn.getresponse()
+        data = json.loads(response.read().decode())
+
+        if "snapshot_id" in data:
+            print("Track added successfully!")
+        else:
+            print("Error adding track:", data)
+    return
+
+# authorize spotify user
+@app.route('/spotify_auth', methods=["GET", "POST"])
+def spotify_auth():
+    print("authorizing")
+    # if not is_authorized():
+    CLIENT_ID = "6b592b7992754aaca6646d68afc5ccd2" # currently hardcoded
+    state = generate_random_string(16);
+    scope = 'user-read-private user-read-email playlist-modify-public playlist-modify-private';
+    
+    auth_query_params = urlencode({
+        "response_type": "code",
+        "redirect_uri": "http://localhost:8000/callback",
+        "scope": scope,
+        "state": state,
+        "show_dialog": 'true',
+        "client_id": CLIENT_ID,
+    })
+    url = "https://accounts.spotify.com/authorize?" + auth_query_params
+    print(url)
+    return redirect(url)
+    # else:
+    #     return redirect(url_for('create_playlist'))
+    
+def get_credentials():
+    client_id = "6b592b7992754aaca6646d68afc5ccd2"
+    client_secret = "d3ea681734b34b08a8f2eeff6f27413b"
+    return base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+def generate_random_string(length=12):
+    characters = string.ascii_letters + string.digits 
+    return ''.join(random.choices(characters, k=length))
+
+# receive callback from spotify authorization to exchange code for token
+@app.route('/callback', methods=["GET", "POST"])
+def spotify_callback():
+    print("callback!")
+    REDIRECT_URI = "http://localhost:8000/callback"
+    code = request.args.get("code")
+    state =  request.args.get("state")
+    
+    if code and state:
+        conn = http.client.HTTPSConnection("accounts.spotify.com")
+        credentials = get_credentials()
+        
+        headers = {
+            "Authorization": f"Basic {credentials}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = urlencode({
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+        })
+
+        conn.request("POST", "/api/token", body, headers)
+        response = conn.getresponse()
+        data = json.loads(response.read().decode())
+
+        ACCESS_TOKEN = data.get("access_token")
+        session['access_token'] = ACCESS_TOKEN
+        print("Access Token:", ACCESS_TOKEN)
+        
+    return redirect("https://www.spotify.com")
+
+
 
     
 @app.route("/reset", methods=["POST"])
