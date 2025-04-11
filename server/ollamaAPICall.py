@@ -14,7 +14,7 @@ import uuid
 import datetime
 import database
 import hashlib
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 #logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
@@ -35,7 +35,7 @@ class UserHistory(db.Model):
     message = db.Column(db.Text)
     role = db.Column(db.String)
     session_id = db.Column(db.String(36), default=lambda: str(uuid.uuid4()))
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -221,7 +221,7 @@ def create_playlist():
         print("creating playlist!")
         parsed_response = session["parsed_response"]
 
-        ACCESS_TOKEN = session["access_token"]
+        ACCESS_TOKEN = get_valid_token()
         PLAYLIST_LINK = ""
         if ACCESS_TOKEN:
             # TODO: get user ID
@@ -263,7 +263,7 @@ def create_playlist():
         return jsonify({'requires_auth': True})
 
 def is_authorized():
-    access_token = session.get('access_token')
+    access_token = get_valid_token()
     if access_token:
         return True
     else:
@@ -278,6 +278,7 @@ def get_user_id(access_token):
 
     conn.request("GET", "/v1/me", headers=headers)
     response = conn.getresponse()
+    print(response)
     user_data = json.loads(response.read().decode())
 
     USER_ID = ""
@@ -397,11 +398,30 @@ def spotify_callback():
 
         ACCESS_TOKEN = data.get("access_token")
         session['access_token'] = ACCESS_TOKEN
+        session['token_saved_at'] = datetime.now(timezone.utc).isoformat()
         print("Access Token:", ACCESS_TOKEN)
         
     return redirect("https://www.spotify.com")
 
+def get_valid_token():
+    token = session.get('access_token')
+    saved_at_str = session.get('token_saved_at')
 
+    if token and saved_at_str:
+        saved_at = datetime.fromisoformat(saved_at_str)
+
+        # make sure it's timezone-aware
+        if saved_at.tzinfo is None:
+            saved_at = saved_at.replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        if now - saved_at < timedelta(hours=1):
+            return token
+        else:
+            session.pop('access_token', None)
+            session.pop('token_saved_at', None)
+            return None
+    return None
 
     
 @app.route("/reset", methods=["POST"])
