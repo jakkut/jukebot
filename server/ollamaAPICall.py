@@ -134,12 +134,12 @@ def generate_songs():
     saved_messages.append({'role': 'user', 'content': user_input})
 
     # Generate response using Ollama
-    response = chat(model='llama3.2', messages=saved_messages)
+    response = chat(model='llama3.2', messages=saved_messages, stream=True)
     
     # Parse response to get songs in form {'playlist_title': title, 'songs': [(artist, title), (artist, title)...]}
     try:
         playlist = parse_output(response)
-        print(playlist)
+        # print(playlist)
         session["parsed_response"] = playlist
     except:
         print('error with parsing')
@@ -179,6 +179,19 @@ def generate_songs():
     #f.close()
     #link = create_playlist(test_playlist)
     
+    full_content = ''
+    for chunk in response:
+        full_content += chunk.get('content', '')
+
+    # Reconstruct a "non-stream" style response object
+    response = {
+        'model': 'llama3.2',
+        'message': {
+            'role': 'assistant',
+            'content': full_content
+        }
+    }
+
     AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
     db.session.add(AI_message)
     db.session.commit()
@@ -190,21 +203,52 @@ def generate_songs():
     return jsonify({"playlist": response['message']['content']})
 
 def parse_output(response):
-    output = response['message']['content']
-    lines = output.strip().split("\n")
+    # output = response['message']['content']
+    # lines = output.strip().split("\n")
+    # songs = []
+    # # print(output)
+    # playlist_title = lines[0].replace("Playlist Title:", "").strip()
+    # playlist_title = re.sub(r'[^a-zA-Z0-9\s]', '', playlist_title)
+    
+    # for line in lines[1:]:
+    #     print(line)
+    #     if line:
+    #         artist, title = map(str.strip, line.split(":", 1)) 
+    #         artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
+    #         title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
+    #         songs.append((artist, title))
+    
+    playlist_title = None
     songs = []
-    # print(output)
-    playlist_title = lines[0].replace("Playlist Title:", "").strip()
-    playlist_title = re.sub(r'[^a-zA-Z0-9\s]', '', playlist_title)
-    
-    for line in lines[1:]:
-        print(line)
-        if line:
-            artist, title = map(str.strip, line.split(":", 1)) 
-            artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
-            title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
-            songs.append((artist, title))
-    
+    buffer = ""
+
+    for chunk in response:
+        content = chunk.get('message', {}).get('content', '')
+        buffer += content
+
+        lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            if playlist_title is None:
+                playlist_title = line.replace('Playlist Title:', '').strip()
+                playlist_title = re.sub(r'[^a-zA-Z0-9\s]', '', playlist_title)
+                print(f'Playlist Title: {playlist_title}')
+            else:
+                try:
+                    artist, title = map(str.strip, line.split(":", 1)) 
+                    artist = re.sub(r'[^a-zA-Z0-9\s]', '', artist)
+                    title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
+                    songs.append((artist, title))
+                    print(f'{artist}: {title}')
+                except ValueError:
+                    continue
+
+
     # print("parsing!")
     
     # note: for spotify's api, you need to pass in an array of spotify uris as strings.
