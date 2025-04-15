@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer base {
+    :root {
+        @apply bg-back-grey;
+    }
+}
+
+@theme {
+    --color-back-grey: #353445;
+    --color-accent-grey: #282733;
+    --color-juke-red: #FF6A92;
+    --color-juke-green: #02B76C;
+}
