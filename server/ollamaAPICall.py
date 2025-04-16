@@ -497,6 +497,7 @@ def reset():
 def home():
     if 'username' not in session:
         return jsonify({"redirect": "http://localhost:5173/login"})
+    return redirect(url_for('get_history'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -570,9 +571,11 @@ def get_history():
     
     # (Here you’d query your database for history.)
     history = UserHistory.query.filter_by(user_id=user_id).order_by(UserHistory.created_at.asc()).all()
+    print(user_id)
     
     sessions = {}
     for msg in history:
+        print(msg.message)
         session_id = msg.session_id
         content = msg.message
         if msg.role.lower() == "assistant":
