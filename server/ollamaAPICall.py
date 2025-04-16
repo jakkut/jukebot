@@ -173,7 +173,7 @@ def generate_songs():
                 Taylor Swift: Champagne Problems,
                 Ed Sheeran: Lego House" """
         saved_messages.append({'role': 'user', 'content': new_message})
-        response = chat(model='llama3.2', messages=saved_messages)
+        response = chat(model='llama3.2', messages=saved_messages, stream=True)
         playlist = parse_output(response)
         session["parsed_response"] = playlist
     
@@ -195,20 +195,21 @@ def generate_songs():
     #f.close()
     #link = create_playlist(test_playlist)
     
-    full_content = ''
-    for chunk in response:
-        full_content += chunk.get('content', '')
+    # full_content = ''
+    # for chunk in response:
+    #     full_content += chunk.get('content', '')
 
     # Reconstruct a "non-stream" style response object
-    response = {
-        'model': 'llama3.2',
-        'message': {
-            'role': 'assistant',
-            'content': full_content
-        }
-    }
+    # response = {
+    #     'model': 'llama3.2',
+    #     'message': {
+    #         'role': 'assistant',
+    #         'content': full_content
+    #     }
+    # }
 
-    AI_message = UserHistory(user_id=user_id, message=response['message']['content'], role='assistant', session_id=session['session_id'])
+    playlist_str = json.dumps(playlist)
+    AI_message = UserHistory(user_id=user_id, message=playlist_str, role='assistant', session_id=session['session_id'])
     db.session.add(AI_message)
     db.session.commit()
     
@@ -216,7 +217,7 @@ def generate_songs():
     session.modified = True
 
     # Return the latest response only
-    return jsonify({"playlist": response['message']['content']})
+    return playlist_str
 
 def parse_output(response):
     # output = response['message']['content']
