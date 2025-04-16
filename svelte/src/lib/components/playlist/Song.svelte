@@ -2,8 +2,9 @@
 	let { data } = $props();
 </script>
 
-<div class="flex bg-back-grey my-2 p-2">
-	<img alt="album cover" />
-	<p class="mr-auto">{data.title}</p>
-	<p>{data.artist}</p>
+<div
+	class="flex items-center justify-between bg-back-grey rounded py-2 px-3 my-2 transition-transform hover:scale-105 duration-200"
+>
+	<p class="font-medium text-white">{data[0]}</p>
+	<p class="text-sm text-gray-300">{data[1]}</p>
 </div>

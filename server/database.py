@@ -43,3 +43,4 @@ def get_user(username):
             if row:
                 return {'username': row[0], 'password': row[1]}
             return None
+    

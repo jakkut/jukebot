@@ -1,27 +1,20 @@
 <script>
 	import { Song } from "$lib";
 
-	let { id } = $props();
+	let { data } = $props();
+	let playlist = data;
 
-	// Do something to fetch the actual playlist info
-	let dummyPlaylist = {
-		title: "Playlist Name",
-		description: "Playlist Description",
-		songs: [
-			{ title: "Hillbilly Elegy", artist: "Taylor Swift" },
-			{ title: "Knock", artist: "Bruv" },
-		],
-	};
-
-	let playlist = dummyPlaylist;
+	console.log(playlist);
 </script>
 
-<div class="bg-accent-grey rounded-lg px-6 py-4">
-	<h3 class="text-xl font-bold">{playlist.title}</h3>
-	<h4 class="">{playlist.description}</h4>
+<div class="bg-accent-grey rounded-lg px-6 py-4 shadow-lg">
+	<h3 class="text-2xl font-bold mb-4 text-left">{playlist.playlist_title}</h3>
 	<div>
-		{#each playlist.songs as song}
+		{#each playlist.songs.slice(0, 5) as song}
 			<Song data={song} />
 		{/each}
+		{#if playlist.songs.length > 5}
+			<p class="text-center text-gray-300 mt-2">And more...</p>
+		{/if}
 	</div>
 </div>

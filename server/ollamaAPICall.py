@@ -6,8 +6,8 @@ import re
 import time
 from urllib.parse import quote, urlencode
 from ollama import chat
-from flask import Flask, request, jsonify, render_template, session, make_response
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, request, redirect, url_for, session, flash, jsonify
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import json, os
 import uuid
@@ -17,11 +17,24 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 #logging.basicConfig(level=logging.DEBUG)
 
+TEMP_USER_ID = "thefinalcountdown"
+
+
 app = Flask(__name__, static_folder='../client/static', template_folder='../client/templates')
 app.secret_key = "your_secret_key"  # Needed to store session data
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "messages.db")}'
+
+app.config['SESSION_COOKIE_SECURE'] = False  # For HTTP development
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_DOMAIN'] = 'localhost'
+
+
+FRONT_END_URL = "http://localhost:5173/"
+app.config.from_object(__name__)
+
 db = SQLAlchemy(app)
+CORS(app, supports_credentials=True)
 
 class allUsers(db.Model):
     __tablename__ = 'allusers'
@@ -63,10 +76,11 @@ def verify_hash(stored_hash, input_password):
 @app.route("/generate_songs", methods=["POST"])
 def generate_songs():
     #get user input / user id from the frontend 
+    print(session["username"])
     user_input = request.json.get("content")
     user_id = None
     if session['is_guest'] == True:
-        user_id = request.json.get("userId") #guest using cookie
+        user_id = request.json.get("user_id") #guest using cookie
     else:
         user_id = session['username']  #signed-in user 
 
@@ -87,7 +101,9 @@ def generate_songs():
     if "session_id" not in session: #if no SESSION history (first message)
         if saved_messages: #if previous user
             user_input = "Considering the general vibe and general preferences of all previous messages, " \
-            "Absolutely DO NOT converse with me. You can only respond with a playlist. Just make a playlist that fits this description: " + user_input + """Respond in this exact format, and include at least 30 songs. DO NOT INCLUDE ANY OTHER NOTES: 
+            "Absolutely DO NOT converse with me. You can only respond with a playlist. " \
+            "Just make a playlist that fits this description: \n" + user_input + "\nRespond in this exact format, and include at least 30 songs." \
+            """ DO NOT INCLUDE ANY OTHER NOTES: 
             "<playlist title>
             <artist>: <title>, 
             <artist>: <title>, 
@@ -258,6 +274,9 @@ def parse_output(response):
         "playlist_title": playlist_title,
         "songs": songs
     }
+    
+def svelte_redirect(loc):
+    return jsonify({"redirect": FRONT_END_URL + loc})
     
 @app.route('/create_playlist', methods=["GET", "POST"])
 def create_playlist():
@@ -467,7 +486,6 @@ def get_valid_token():
             return None
     return None
 
-    
 @app.route("/reset", methods=["POST"])
 def reset():
     #session.pop("messages", None)
@@ -477,27 +495,36 @@ def reset():
 
 @app.route('/')
 def home():
-    if 'username' in session:
-        return render_template('index.html', username=session.get('username'), is_guest=session.get('is_guest', False))
-    return redirect(url_for('login'))
+    if 'username' not in session:
+        return jsonify({"redirect": "http://localhost:5173/login"})
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if username and password:
-            user = database.get_user(username)
-            if user and verify_hash(user['password'], password):
-                session['username'] = username
-                session['is_guest'] = False
-                return redirect(url_for('home'))
-        
-        flash('Invalid username or password', 'error')
-        return redirect(url_for('login'))
+    if request.method == 'GET':
+        # When a GET request is made (for example, after logout), return a redirect
+        # to the Svelte login page.
+        return jsonify({"redirect": "http://localhost:5173/login"})
     
-    return render_template('login.html')
+    # Otherwise, it's a POST
+        
+    username = request.form.get('username')
+    password = request.form.get('password')
+    
+    session.permanent=False
+    
+    
+    if username and password:
+        user = database.get_user(username)
+        if user and verify_hash(user['password'], password):
+            session['username'] = username
+            session['is_guest'] = False
+            session.permanent = False
+            session.modified = True
+            print("Login successful, session:", dict(session))
+            return jsonify({"redirect": "http://localhost:5173/"})
+        
+    flash('Invalid username or password', 'error')
+    return jsonify({"redirect": "http://localhost:5173/login"})
 
 @app.route('/guest-login')
 def guest_login():
@@ -505,34 +532,78 @@ def guest_login():
     session['is_guest'] = True
     session.permanent = True
     app.permanent_session_lifetime = timedelta(hours=24)
-    return redirect(url_for('home'))
+    session.modified = True
+    return jsonify({"redirect": "http://localhost:5173/"})
 
-@app.route('/create_account', methods=['GET', 'POST'])
+@app.route('/create_account', methods=['POST'])
 def create_account():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    username = request.form.get('username')
+    password = request.form.get('password')
         
-        if not username or not password:
-            flash('Username and password are required', 'error')
-            return redirect(url_for('create_account'))
+    if not username or not password:
+        flash('Username and password are required', 'error')
+        return jsonify({"redirect": "http://localhost:5173/create_account"})
         
-        if database.user_exists(username):
-            flash('Username already exists', 'error')
-            return redirect(url_for('create_account'))
+    if database.user_exists(username):
+        flash('Username already exists', 'error')
+        return jsonify({"redirect": "http://localhost:5173/create_account"})
         
-        hashed_password = make_hash(password)
-        database.add_user(username, hashed_password)
-        flash('Account created successfully! Please login.', 'success')
-        return redirect(url_for('login'))
+    hashed_password = make_hash(password)
+    database.add_user(username, hashed_password)
+    flash('Account created successfully! Please login.', 'success')
     
-    return render_template('create_account.html')
+    return jsonify({"redirect": "http://localhost:5173/login"})
+    
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET'])
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    response = jsonify({"redirect": "http://localhost:5173/login"})
+    response.delete_cookie('session', path='/')
+    return response
 
+@app.route("/get_history", methods=["GET"])
+def get_history():
+    user_id = session.get("username")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    # (Here you’d query your database for history.)
+    history = UserHistory.query.filter_by(user_id=user_id).order_by(UserHistory.created_at.asc()).all()
+    
+    sessions = {}
+    for msg in history:
+        session_id = msg.session_id
+        content = msg.message
+        if msg.role.lower() == "assistant":
+            try:
+                parsed = parse_output([{'message': {'content': msg.message}}])
+                content = parsed
+            except Exception as e:
+                print(f"Error parsing assistant message: {e}")
+                content = msg.message
+        message_obj = {
+            "role": msg.role,
+            "message": content
+        }
+        sessions.setdefault(session_id, []).append(message_obj)
+    
+    conversations = []
+    for s_id, messages in sessions.items():
+        conv_name = f"Conversation {s_id}"
+        for m in messages:
+            if m["role"].lower() == "assistant" and m["message"]:
+                if isinstance(m["message"], dict) and "playlist_title" in m["message"]:
+                    conv_name = m["message"]["playlist_title"]
+                else:
+                    conv_name = str(m["message"])
+                break
+        conversations.append({
+            "name": conv_name,
+            "history": messages
+        })
+    
+    return jsonify({"user_id": user_id, "conversations": conversations})
 
 if __name__ == "__main__":
     app.run(debug=True, host="localhost", port=8000)
