@@ -82,6 +82,7 @@ def generate_songs():
     history = UserHistory.query.filter_by(user_id=user_id).all()
     for msg in history:
         saved_messages.append({'role': msg.role, 'content': msg.message})
+    print(saved_messages)
 
 
     if "session_id" not in session: #if no SESSION history (first message)
@@ -491,4 +492,4 @@ def logout():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="localhost", port=8000)
+    app.run(debug=True, host="localhost", port
